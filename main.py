@@ -39,7 +39,7 @@ teachers = {
 }
 
 # School timing configuration
-days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+days_of_week = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 periods_per_day = 6
 
 ### DO NOT MODIFY THE CODE ABOVE THIS LINE ###
