@@ -55,10 +55,65 @@ def generate_timetable():
     # Initialize an empty timetable
     timetable = {day: {period: {} for period in range(1, periods_per_day + 1)} for day in days_of_week}
     
-    # TODO: Implement the timetable generation algorithm
-    # 1. Check if a valid timetable is possible with the given constraints
-    # 2. Assign subjects and teachers to periods for each class
-    # 3. Ensure all constraints are satisfied
+    # Create a list of all periods to be scheduled
+    periods_to_schedule = []
+    for class_name in classes:
+        for subject, count in class_subject_periods[class_name].items():
+            for _ in range(count):
+                periods_to_schedule.append((class_name, subject))
+    
+    # Shuffle the periods to randomize the assignment
+    import random
+    random.shuffle(periods_to_schedule)
+    
+    # Track teacher assignments to avoid double-booking
+    teacher_assignments = {day: {period: set() for period in range(1, periods_per_day + 1)} for day in days_of_week}
+    
+    # Track subject counts for each class to ensure we don't exceed requirements
+    subject_counts = {class_name: {subject: 0 for subject in subjects} for class_name in classes}
+    
+    # Track unassigned periods for reporting
+    unassigned_periods = []
+    
+    # Try to assign each period
+    for class_name, subject in periods_to_schedule:
+        assigned = False
+        
+        # Try each day and period
+        for day in days_of_week:
+            if assigned:
+                break
+                
+            for period in range(1, periods_per_day + 1):
+                # Skip if this period is already assigned for this class
+                if class_name in timetable[day][period]:
+                    continue
+                
+                # Find a teacher who can teach this subject
+                available_teacher = None
+                for teacher, subjects_they_can_teach in teachers.items():
+                    if subject in subjects_they_can_teach and teacher not in teacher_assignments[day][period]:
+                        available_teacher = teacher
+                        break
+                
+                # If we found an available teacher, assign the period
+                if available_teacher:
+                    timetable[day][period][class_name] = (subject, available_teacher)
+                    teacher_assignments[day][period].add(available_teacher)
+                    subject_counts[class_name][subject] += 1
+                    assigned = True
+                    break
+        
+        # If we couldn't assign this period, track it for reporting
+        if not assigned:
+            unassigned_periods.append((class_name, subject))
+    
+    # Report any unassigned periods
+    if unassigned_periods:
+        print("\nWarning: The following periods could not be assigned:")
+        for class_name, subject in unassigned_periods:
+            print(f"  - {subject} for {class_name}")
+        print("The timetable may be incomplete or invalid.")
     
     return timetable
 
@@ -70,10 +125,63 @@ def display_timetable(timetable):
     Args:
         timetable (dict): The generated timetable
     """
-    # TODO: Implement timetable display logic
-    # Display the timetable for each class
-    # Display the timetable for each teacher
-    pass
+    # Display timetable for each class
+    print("\n" + "="*100)
+    print("CLASS TIMETABLES".center(100))
+    print("="*100)
+    
+    for class_name in classes:
+        print(f"\n{class_name} Timetable:")
+        print("-" * 100)
+        
+        # Print header row with days
+        print("Period |", end=" ")
+        for day in days_of_week:
+            print(f"{day:<20}", end=" ")
+        print()
+        print("-" * 100)
+        
+        # Print each period
+        for period in range(1, periods_per_day + 1):
+            print(f"{period:^6} |", end=" ")
+            for day in days_of_week:
+                if class_name in timetable[day][period]:
+                    subject, teacher = timetable[day][period][class_name]
+                    print(f"{subject} ({teacher})", end=" ")
+                else:
+                    print(" " * 20, end=" ")
+            print()
+    
+    # Display timetable for each teacher
+    print("\n" + "="*100)
+    print("TEACHER TIMETABLES".center(100))
+    print("="*100)
+    
+    for teacher in teachers:
+        print(f"\n{teacher} Timetable:")
+        print("-" * 100)
+        
+        # Print header row with days
+        print("Period |", end=" ")
+        for day in days_of_week:
+            print(f"{day:<20}", end=" ")
+        print()
+        print("-" * 100)
+        
+        # Print each period
+        for period in range(1, periods_per_day + 1):
+            print(f"{period:^6} |", end=" ")
+            for day in days_of_week:
+                found = False
+                for class_name in classes:
+                    if class_name in timetable[day][period] and timetable[day][period][class_name][1] == teacher:
+                        subject = timetable[day][period][class_name][0]
+                        print(f"{subject} ({class_name})", end=" ")
+                        found = True
+                        break
+                if not found:
+                    print(" " * 20, end=" ")
+            print()
 
 
 def validate_timetable(timetable):
@@ -87,12 +195,44 @@ def validate_timetable(timetable):
         bool: True if timetable is valid, False otherwise
         str: Error message if timetable is invalid
     """
-    # TODO: Implement validation logic
     # Check if all classes have their required number of periods for each subject
-    # Check if teachers are not double-booked
-    # Check if teachers are only teaching subjects they can teach
+    subject_counts = {class_name: {subject: 0 for subject in subjects} for class_name in classes}
     
-    return False, "To be implemented"
+    for day in days_of_week:
+        for period in range(1, periods_per_day + 1):
+            for class_name in classes:
+                if class_name in timetable[day][period]:
+                    subject, _ = timetable[day][period][class_name]
+                    subject_counts[class_name][subject] += 1
+    
+    # Check if all required periods are scheduled
+    for class_name in classes:
+        for subject, required_count in class_subject_periods[class_name].items():
+            if subject_counts[class_name][subject] < required_count:
+                return False, f"{class_name} has only {subject_counts[class_name][subject]} periods of {subject}, but requires {required_count}"
+    
+    # Check if teachers are not double-booked
+    teacher_assignments = {day: {period: set() for period in range(1, periods_per_day + 1)} for day in days_of_week}
+    
+    for day in days_of_week:
+        for period in range(1, periods_per_day + 1):
+            for class_name in classes:
+                if class_name in timetable[day][period]:
+                    _, teacher = timetable[day][period][class_name]
+                    if teacher in teacher_assignments[day][period]:
+                        return False, f"Teacher {teacher} is double-booked on {day} period {period}"
+                    teacher_assignments[day][period].add(teacher)
+    
+    # Check if teachers are only teaching subjects they can teach
+    for day in days_of_week:
+        for period in range(1, periods_per_day + 1):
+            for class_name in classes:
+                if class_name in timetable[day][period]:
+                    subject, teacher = timetable[day][period][class_name]
+                    if subject not in teachers[teacher]:
+                        return False, f"Teacher {teacher} is teaching {subject}, which they are not qualified to teach"
+    
+    return True, "Timetable is valid"
 
 
 def main():
