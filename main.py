@@ -206,13 +206,21 @@ def validate_timetable(timetable):
                     subject_counts[class_name][subject] += 1
     
     # Check if all required periods are scheduled
+    missing_periods = []
     for class_name in classes:
         for subject, required_count in class_subject_periods[class_name].items():
             if subject_counts[class_name][subject] < required_count:
-                return False, f"{class_name} has only {subject_counts[class_name][subject]} periods of {subject}, but requires {required_count}"
+                missing_periods.append((class_name, subject, subject_counts[class_name][subject], required_count))
+    
+    if missing_periods:
+        error_msg = "The following required periods are missing:\n"
+        for class_name, subject, actual, required in missing_periods:
+            error_msg += f"  - {class_name} has only {actual} periods of {subject}, but requires {required}\n"
+        return False, error_msg
     
     # Check if teachers are not double-booked
     teacher_assignments = {day: {period: set() for period in range(1, periods_per_day + 1)} for day in days_of_week}
+    double_bookings = []
     
     for day in days_of_week:
         for period in range(1, periods_per_day + 1):
@@ -220,38 +228,65 @@ def validate_timetable(timetable):
                 if class_name in timetable[day][period]:
                     _, teacher = timetable[day][period][class_name]
                     if teacher in teacher_assignments[day][period]:
-                        return False, f"Teacher {teacher} is double-booked on {day} period {period}"
+                        double_bookings.append((teacher, day, period))
                     teacher_assignments[day][period].add(teacher)
     
+    if double_bookings:
+        error_msg = "The following teachers are double-booked:\n"
+        for teacher, day, period in double_bookings:
+            error_msg += f"  - {teacher} on {day} period {period}\n"
+        return False, error_msg
+    
     # Check if teachers are only teaching subjects they can teach
+    invalid_assignments = []
     for day in days_of_week:
         for period in range(1, periods_per_day + 1):
             for class_name in classes:
                 if class_name in timetable[day][period]:
                     subject, teacher = timetable[day][period][class_name]
                     if subject not in teachers[teacher]:
-                        return False, f"Teacher {teacher} is teaching {subject}, which they are not qualified to teach"
+                        invalid_assignments.append((teacher, subject, class_name, day, period))
     
-    return True, "Timetable is valid"
+    if invalid_assignments:
+        error_msg = "The following teachers are assigned to subjects they cannot teach:\n"
+        for teacher, subject, class_name, day, period in invalid_assignments:
+            error_msg += f"  - {teacher} is teaching {subject} to {class_name} on {day} period {period}\n"
+        return False, error_msg
+    
+    return True, "Timetable is valid and meets all constraints."
 
 
 def main():
     """
     Main function to generate and display the timetable.
     """
-    print("Generating school timetable...")
+    print("\n" + "="*100)
+    print("SCHOOL TIMETABLE GENERATOR".center(100))
+    print("="*100)
+    print("\nGenerating school timetable...")
     
     # Generate the timetable
     timetable = generate_timetable()
     
     # Validate the timetable
+    print("\nValidating timetable...")
     is_valid, message = validate_timetable(timetable)
     
     if is_valid:
+        print("\n" + "="*100)
+        print("TIMETABLE GENERATION SUCCESSFUL".center(100))
+        print("="*100)
+        print(f"\n{message}")
+        
         # Display the timetable
         display_timetable(timetable)
     else:
-        print(f"Failed to generate valid timetable: {message}")
+        print("\n" + "="*100)
+        print("TIMETABLE GENERATION FAILED".center(100))
+        print("="*100)
+        print(f"\n{message}")
+        print("\nPlease try running the program again. The algorithm uses randomization,")
+        print("so each attempt may produce different results.")
 
 
 if __name__ == "__main__":
